@@ -6,7 +6,7 @@ export default function HomePage() {
       <div className="mx-auto max-w-lg px-6 py-12">
         <header className="mb-12 text-center">
           <p className="mb-2 text-sm font-medium tracking-wide text-coral-500">
-            수익화 탐색 테스트
+            진로 탐색 테스트
           </p>
           <h1 className="mb-4 text-4xl font-bold text-brown-700">나 뭐하지?</h1>
           <p className="text-lg leading-relaxed text-brown-600">
