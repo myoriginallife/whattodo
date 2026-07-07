@@ -79,6 +79,12 @@ export default function EmailForm({
         });
 
       if (insertError) {
+        console.error("Supabase insert error:", insertError);
+        if (insertError.code === "42501") {
+          throw new Error(
+            "데이터베이스 권한이 설정되지 않았습니다. 관리자에게 문의해주세요."
+          );
+        }
         throw new Error("데이터 저장에 실패했습니다.");
       }
 

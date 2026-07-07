@@ -26,6 +26,10 @@ create policy "Allow anonymous insert"
   to anon
   with check (true);
 
+-- anon 역할에 테이블 INSERT 권한 부여 (필수)
+grant insert on public.test_submissions to anon;
+grant insert on public.test_submissions to authenticated;
+
 -- 인덱스 (조회 성능)
 create index if not exists test_submissions_created_at_idx
   on test_submissions (created_at desc);
