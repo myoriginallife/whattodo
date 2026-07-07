@@ -9,7 +9,7 @@ import {
   MAIN_CONCERNS,
   DESIRED_SERVICES,
 } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { submitTestSubmission, isSubmissionConfigured } from "@/lib/submitSubmission";
 
 interface EmailFormProps {
   answers: number[];
@@ -59,34 +59,22 @@ export default function EmailForm({
     setLoading(true);
 
     try {
-      if (!supabase) {
+      if (!isSubmissionConfigured()) {
         throw new Error("데이터베이스가 설정되지 않았습니다. 관리자에게 문의해주세요.");
       }
 
-      const { error: insertError } = await supabase
-        .from("test_submissions")
-        .insert({
-          email: email.trim(),
-          age_group: ageGroup || null,
-          youngest_child_age: youngestChildAge || null,
-          career_break_period: careerBreakPeriod || null,
-          previous_job: previousJob.trim() || null,
-          main_concern: mainConcern || null,
-          desired_service: desiredService || null,
-          answers_json: answers,
-          scores_json: scores,
-          result_type: resultType,
-        });
-
-      if (insertError) {
-        console.error("Supabase insert error:", insertError);
-        if (insertError.code === "42501") {
-          throw new Error(
-            "데이터베이스 권한이 설정되지 않았습니다. 관리자에게 문의해주세요."
-          );
-        }
-        throw new Error("데이터 저장에 실패했습니다.");
-      }
+      await submitTestSubmission({
+        email: email.trim(),
+        age_group: ageGroup || null,
+        youngest_child_age: youngestChildAge || null,
+        career_break_period: careerBreakPeriod || null,
+        previous_job: previousJob.trim() || null,
+        main_concern: mainConcern || null,
+        desired_service: desiredService || null,
+        answers_json: answers,
+        scores_json: scores,
+        result_type: resultType,
+      });
 
       setSubmitted(true);
       onSuccess();
