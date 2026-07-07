@@ -1,0 +1,28 @@
+import type { Question } from "@/types";
+
+export const QUESTIONS: Question[] = [
+  { id: 1, text: "새로운 것을 배우는 시간이 즐겁다.", category: "growth" },
+  { id: 2, text: "자격증이나 전문성을 쌓는 일에 흥미가 있다.", category: "growth" },
+  { id: 3, text: "시간이 걸려도 실력을 키우는 것이 중요하다.", category: "growth" },
+  { id: 4, text: "어렵더라도 성장하는 과정이 보람 있다.", category: "growth" },
+  { id: 5, text: "매달 일정한 수입이 가장 중요하다.", category: "stability" },
+  { id: 6, text: "큰 성공보다 안정적인 삶이 좋다.", category: "stability" },
+  { id: 7, text: "실패 가능성이 큰 일은 피하는 편이다.", category: "stability" },
+  { id: 8, text: "복지와 근무 환경을 중요하게 생각한다.", category: "stability" },
+  { id: 9, text: "정해진 시간보다 스스로 일정을 조절하는 것이 좋다.", category: "autonomy" },
+  { id: 10, text: "출퇴근이 없는 일을 선호한다.", category: "autonomy" },
+  { id: 11, text: "내가 결정할 수 있는 일이 많을수록 만족한다.", category: "autonomy" },
+  { id: 12, text: "일과 육아를 유연하게 조절하고 싶다.", category: "autonomy" },
+  { id: 13, text: "누군가의 문제를 해결해 줄 때 보람을 느낀다.", category: "people" },
+  { id: 14, text: "사람들의 이야기를 듣는 편이다.", category: "people" },
+  { id: 15, text: "가르치거나 설명하는 것을 좋아한다.", category: "people" },
+  { id: 16, text: "혼자보다 사람과 함께 일하는 것이 좋다.", category: "people" },
+  { id: 17, text: "새로운 아이디어를 생각하는 것을 좋아한다.", category: "creativity" },
+  { id: 18, text: "기존 방식을 개선하는 일이 재미있다.", category: "creativity" },
+  { id: 19, text: "글이나 콘텐츠를 만드는 일이 즐겁다.", category: "creativity" },
+  { id: 20, text: "새로운 서비스를 상상해 본 적이 많다.", category: "creativity" },
+  { id: 21, text: "계획보다 먼저 시작하는 편이다.", category: "execution" },
+  { id: 22, text: "시작한 일은 끝까지 마무리한다.", category: "execution" },
+  { id: 23, text: "꾸준히 반복하는 힘이 있다.", category: "execution" },
+  { id: 24, text: "작은 실패가 있어도 다시 도전한다.", category: "execution" },
+];
