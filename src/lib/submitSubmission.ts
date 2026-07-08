@@ -1,7 +1,7 @@
 import type { CategoryScores, ResultTypeId } from "@/types";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 
 export interface SubmissionPayload {
   email: string;
@@ -27,14 +27,20 @@ export async function submitTestSubmission(
     throw new Error("데이터베이스가 설정되지 않았습니다. 관리자에게 문의해주세요.");
   }
 
+  if (supabaseKey.startsWith("sb_secret_")) {
+    throw new Error(
+      "잘못된 API 키입니다. secret key 대신 anon 또는 publishable key를 사용해주세요."
+    );
+  }
+
   const headers: Record<string, string> = {
     apikey: supabaseKey,
     "Content-Type": "application/json",
     Prefer: "return=minimal",
   };
 
-  // publishable key는 apikey 헤더만 사용 (Bearer JWT 아님)
-  if (!supabaseKey.startsWith("sb_publishable_")) {
+  // legacy anon JWT (eyJ...)는 apikey + Authorization 둘 다 필요
+  if (supabaseKey.startsWith("eyJ")) {
     headers.Authorization = `Bearer ${supabaseKey}`;
   }
 
