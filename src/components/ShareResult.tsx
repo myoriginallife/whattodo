@@ -5,9 +5,12 @@ import type { ResultType } from "@/types";
 import {
   captureResultImage,
   copyShareLink,
-  downloadImage,
   nativeShare,
+  saveOrShareImage,
+  shareText,
   canNativeShare,
+  canShareImageFiles,
+  isMobile,
 } from "@/lib/shareResult";
 
 interface ShareResultProps {
@@ -22,7 +25,7 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
 
   const showToast = (message: string) => {
     setToast(message);
-    setTimeout(() => setToast(""), 2500);
+    setTimeout(() => setToast(""), 3000);
   };
 
   const getImageBlob = useCallback(async () => {
@@ -31,12 +34,20 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
   }, [imageRef, result.color]);
 
   const handleShare = async () => {
+    if (isMobile() && canNativeShare()) {
+      setShowOptions(true);
+      return;
+    }
+
     setLoading(true);
     try {
       if (canNativeShare()) {
         const blob = await getImageBlob();
         const status = await nativeShare(result, blob);
-        if (status === "shared") return;
+        if (status === "shared") {
+          showToast("공유되었습니다.");
+          return;
+        }
         if (status === "cancelled") return;
       }
       setShowOptions(true);
@@ -51,9 +62,23 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
     setLoading(true);
     try {
       const blob = await getImageBlob();
-      downloadImage(blob, `나뭐하지_${result.name}.png`);
-      showToast("이미지가 저장되었습니다.");
-      setShowOptions(false);
+      const status = await saveOrShareImage(blob, result);
+
+      if (status === "saved") {
+        showToast(
+          isMobile()
+            ? "이미지가 열렸습니다. 길게 눌러 저장하세요."
+            : "이미지가 저장되었습니다."
+        );
+        setShowOptions(false);
+      } else if (status === "shared") {
+        showToast("공유 메뉴에서 '이미지 저장'을 선택하세요.");
+        setShowOptions(false);
+      } else if (status === "cancelled") {
+        // 사용자 취소
+      } else {
+        showToast("이미지 저장에 실패했습니다.");
+      }
     } catch {
       showToast("이미지 저장에 실패했습니다.");
     } finally {
@@ -70,11 +95,37 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
   const handleShareText = async () => {
     setLoading(true);
     try {
-      const blob = await getImageBlob();
-      const status = await nativeShare(result, blob);
-      if (status === "shared") setShowOptions(false);
+      const status = await shareText(result);
+      if (status === "shared") {
+        showToast("공유되었습니다.");
+        setShowOptions(false);
+      } else if (status === "cancelled") {
+        // 사용자 취소
+      } else {
+        showToast("공유에 실패했습니다. 링크 복사를 이용해주세요.");
+      }
     } catch {
-      showToast("공유에 실패했습니다.");
+      showToast("공유에 실패했습니다. 링크 복사를 이용해주세요.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShareImage = async () => {
+    setLoading(true);
+    try {
+      const blob = await getImageBlob();
+      const status = await saveOrShareImage(blob, result);
+      if (status === "shared") {
+        showToast("이미지 공유 메뉴가 열렸습니다.");
+        setShowOptions(false);
+      } else if (status === "cancelled") {
+        // 사용자 취소
+      } else {
+        showToast("이미지 공유에 실패했습니다.");
+      }
+    } catch {
+      showToast("이미지 공유에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -104,18 +155,31 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
               결과 공유하기
             </h4>
             <p className="mb-5 text-center text-sm text-brown-500">
-              이미지 저장 또는 링크 공유를 선택하세요
+              {isMobile()
+                ? "이미지 저장 또는 링크 공유를 선택하세요"
+                : "이미지 저장 또는 링크 공유를 선택하세요"}
             </p>
 
             <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleSaveImage}
-                disabled={loading}
-                className="w-full rounded-2xl border-2 border-coral-400 py-3.5 font-medium text-coral-500 transition-colors hover:bg-coral-50"
-              >
-                이미지 저장
-              </button>
+              {canShareImageFiles() ? (
+                <button
+                  type="button"
+                  onClick={handleShareImage}
+                  disabled={loading}
+                  className="w-full rounded-2xl border-2 border-coral-400 py-3.5 font-medium text-coral-500 transition-colors hover:bg-coral-50"
+                >
+                  이미지 저장 / 공유
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSaveImage}
+                  disabled={loading}
+                  className="w-full rounded-2xl border-2 border-coral-400 py-3.5 font-medium text-coral-500 transition-colors hover:bg-coral-50"
+                >
+                  이미지 저장
+                </button>
+              )}
 
               <button
                 type="button"
@@ -132,7 +196,7 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
                   disabled={loading}
                   className="w-full rounded-2xl border border-beige-300 py-3.5 font-medium text-brown-700 transition-colors hover:bg-beige-100"
                 >
-                  다른 앱으로 공유
+                  텍스트로 공유
                 </button>
               )}
 
