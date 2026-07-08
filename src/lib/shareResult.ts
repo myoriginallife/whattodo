@@ -5,10 +5,6 @@ function isIOS(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-function isMobile(): boolean {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-}
-
 export async function captureResultImage(
   element: HTMLElement,
   backgroundColor: string
@@ -23,7 +19,7 @@ export async function captureResultImage(
     useCORS: true,
     allowTaint: true,
     logging: false,
-    imageTimeout: 0,
+    imageTimeout: 15000,
   });
 
   return new Promise((resolve, reject) => {
@@ -51,46 +47,27 @@ export function canNativeShare(): boolean {
   return typeof navigator !== "undefined" && !!navigator.share;
 }
 
-export function canShareImageFiles(): boolean {
-  if (!canNativeShare() || !navigator.canShare) return false;
-  try {
-    const testFile = new File([new Uint8Array(0)], "test.png", {
-      type: "image/png",
-    });
-    return navigator.canShare({ files: [testFile] });
-  } catch {
-    return false;
-  }
-}
-
-export async function saveOrShareImage(
+/** 이미지 파일만 저장 (공유 시트 사용 안 함) */
+export async function downloadImage(
   blob: Blob,
   result: ResultType
-): Promise<"saved" | "shared" | "cancelled" | "failed"> {
+): Promise<"saved" | "failed"> {
   const filename = `나뭐하지_${result.name}.png`;
-  const file = createImageFile(blob, result);
-
-  if (canShareImageFiles()) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: `나 뭐하지? - ${result.name}`,
-      });
-      return "shared";
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return "cancelled";
-    }
-  }
+  const url = URL.createObjectURL(blob);
 
   if (isIOS()) {
-    const url = URL.createObjectURL(blob);
-    const opened = window.open(url, "_blank");
-    URL.revokeObjectURL(url);
-    return opened ? "saved" : "failed";
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return "saved";
   }
 
   try {
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.download = filename;
     link.href = url;
@@ -101,21 +78,51 @@ export async function saveOrShareImage(
     setTimeout(() => URL.revokeObjectURL(url), 3000);
     return "saved";
   } catch {
+    URL.revokeObjectURL(url);
     return "failed";
   }
 }
 
+/** SNS 공유 (카카오톡, 인스타 등) */
+export async function shareToSNS(
+  blob: Blob,
+  result: ResultType
+): Promise<"shared" | "cancelled" | "failed"> {
+  if (!navigator.share) return "failed";
+
+  const file = createImageFile(blob, result);
+  const text = buildShareText(result);
+
+  const attempts: ShareData[] = [
+    { files: [file], title: `나 뭐하지? - ${result.name}`, text },
+    { files: [file] },
+    { title: `나 뭐하지? - ${result.name}`, text },
+    { text },
+  ];
+
+  for (const data of attempts) {
+    try {
+      if (navigator.canShare && !navigator.canShare(data)) continue;
+      await navigator.share(data);
+      return "shared";
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return "cancelled";
+    }
+  }
+
+  return "failed";
+}
+
 export async function copyShareLink(): Promise<boolean> {
   const siteUrl = window.location.origin;
-  const text = `${siteUrl}`;
 
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(siteUrl);
     return true;
   } catch {
     try {
       const textarea = document.createElement("textarea");
-      textarea.value = text;
+      textarea.value = siteUrl;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -129,57 +136,6 @@ export async function copyShareLink(): Promise<boolean> {
   }
 }
 
-export async function shareText(result: ResultType): Promise<
-  "shared" | "cancelled" | "failed"
-> {
-  if (!navigator.share) return "failed";
-
-  const shareData: ShareData = {
-    title: `나 뭐하지? - ${result.name}`,
-    text: buildShareText(result),
-    url: window.location.origin,
-  };
-
-  try {
-    if (navigator.canShare && !navigator.canShare(shareData)) {
-      await navigator.share({
-        title: shareData.title,
-        text: shareData.text,
-      });
-    } else {
-      await navigator.share(shareData);
-    }
-    return "shared";
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return "cancelled";
-    return "failed";
-  }
+export function isIOSDevice(): boolean {
+  return isIOS();
 }
-
-export async function nativeShare(
-  result: ResultType,
-  imageBlob?: Blob
-): Promise<"shared" | "cancelled" | "unsupported"> {
-  if (!navigator.share) return "unsupported";
-
-  if (imageBlob && canShareImageFiles()) {
-    try {
-      const file = createImageFile(imageBlob, result);
-      await navigator.share({
-        files: [file],
-        title: `나 뭐하지? - ${result.name}`,
-        text: buildShareText(result),
-      });
-      return "shared";
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return "cancelled";
-    }
-  }
-
-  const status = await shareText(result);
-  if (status === "shared") return "shared";
-  if (status === "cancelled") return "cancelled";
-  return "unsupported";
-}
-
-export { isMobile };
