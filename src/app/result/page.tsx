@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ResultCard from "@/components/ResultCard";
@@ -17,7 +17,6 @@ import type { CategoryScores, ResultTypeId } from "@/types";
 
 export default function ResultPage() {
   const router = useRouter();
-  const imageRef = useRef<HTMLDivElement>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [scores, setScores] = useState<CategoryScores | null>(null);
   const [resultTypeId, setResultTypeId] = useState<ResultTypeId | null>(null);
@@ -156,14 +155,10 @@ export default function ResultPage() {
           </h3>
 
           <div className="mb-4 flex justify-center">
-            <ResultCard
-              ref={imageRef}
-              result={result}
-              scores={scores}
-            />
+            <ResultCard result={result} scores={scores} />
           </div>
 
-          <ShareResult imageRef={imageRef} result={result} />
+          <ShareResult result={result} scores={scores} />
         </section>
 
         <section className="mb-8 rounded-3xl bg-white p-8 shadow-sm">

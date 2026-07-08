@@ -1,27 +1,31 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import type { ResultType } from "@/types";
+import { useState, useCallback, useEffect, useRef } from "react";
+import type { ResultType, CategoryScores } from "@/types";
+import { generateResultImage } from "@/lib/generateResultImage";
 import {
-  captureResultImage,
   copyShareLink,
-  downloadImage,
-  shareToSNS,
+  shareImageToSNS,
+  downloadImageBlob,
   canNativeShare,
-  isIOSDevice,
+  canShareFiles,
+  isMobileDevice,
 } from "@/lib/shareResult";
+import ImagePreviewModal from "@/components/ImagePreviewModal";
 
 interface ShareResultProps {
-  imageRef: React.RefObject<HTMLDivElement | null>;
   result: ResultType;
+  scores: CategoryScores;
 }
 
-export default function ShareResult({ imageRef, result }: ShareResultProps) {
-  const [loading, setLoading] = useState(false);
+export default function ShareResult({ result, scores }: ShareResultProps) {
   const [showOptions, setShowOptions] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
-  const [preparing, setPreparing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
+  const blobRef = useRef<Blob | null>(null);
+  const generatingRef = useRef(false);
 
   const showToast = (message: string) => {
     setToast(message);
@@ -29,51 +33,62 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
   };
 
   const prepareImage = useCallback(async (): Promise<Blob> => {
-    if (imageBlob) return imageBlob;
-    if (!imageRef.current) throw new Error("이미지를 생성할 수 없습니다.");
-    const blob = await captureResultImage(imageRef.current, result.color);
-    setImageBlob(blob);
-    return blob;
-  }, [imageBlob, imageRef, result.color]);
+    if (blobRef.current) return blobRef.current;
+    if (generatingRef.current) {
+      while (generatingRef.current) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (blobRef.current) return blobRef.current;
+    }
+
+    generatingRef.current = true;
+    try {
+      const blob = await generateResultImage(result, scores);
+      blobRef.current = blob;
+      setImageReady(true);
+      return blob;
+    } finally {
+      generatingRef.current = false;
+    }
+  }, [result, scores]);
 
   useEffect(() => {
-    if (!showOptions) return;
+    void prepareImage();
+  }, [prepareImage]);
 
-    let cancelled = false;
-    setPreparing(true);
-    prepareImage()
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setPreparing(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showOptions, prepareImage]);
-
-  const handleShare = () => {
+  const openShareMenu = () => {
     setShowOptions(true);
+    void prepareImage();
   };
 
   const handleSaveImage = async () => {
     setLoading(true);
     try {
       const blob = await prepareImage();
-      const status = await downloadImage(blob, result);
+      const filename = `나뭐하지_${result.name}.png`;
 
-      if (status === "saved") {
-        showToast(
-          isIOSDevice()
-            ? "이미지가 열렸습니다. 길게 눌러 '이미지 저장'을 선택하세요."
-            : "이미지가 저장되었습니다."
-        );
-        setShowOptions(false);
-      } else {
-        showToast("이미지 저장에 실패했습니다.");
+      if (isMobileDevice() && canShareFiles()) {
+        const status = await shareImageToSNS(blob, result);
+        if (status === "shared") {
+          showToast("공유 메뉴에서 '이미지 저장'을 선택하세요.");
+          setShowOptions(false);
+          return;
+        }
+        if (status === "cancelled") return;
       }
+
+      if (isMobileDevice()) {
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+        setShowOptions(false);
+        return;
+      }
+
+      downloadImageBlob(blob, filename);
+      showToast("이미지가 저장되었습니다.");
+      setShowOptions(false);
     } catch {
-      showToast("이미지 저장에 실패했습니다.");
+      showToast("이미지 생성에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -81,14 +96,14 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
 
   const handleSNSShare = async () => {
     if (!canNativeShare()) {
-      showToast("이 기기에서는 SNS 공유를 지원하지 않습니다. 링크 복사를 이용해주세요.");
+      showToast("SNS 공유를 지원하지 않습니다. 이미지 저장 후 직접 공유해주세요.");
       return;
     }
 
     setLoading(true);
     try {
       const blob = await prepareImage();
-      const status = await shareToSNS(blob, result);
+      const status = await shareImageToSNS(blob, result);
 
       if (status === "shared") {
         showToast("공유되었습니다.");
@@ -96,7 +111,7 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
       } else if (status === "cancelled") {
         // 사용자 취소
       } else {
-        showToast("SNS 공유에 실패했습니다. 링크 복사를 이용해주세요.");
+        showToast("SNS 공유에 실패했습니다. 이미지 저장을 이용해주세요.");
       }
     } catch {
       showToast("SNS 공유에 실패했습니다.");
@@ -111,15 +126,19 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
     setShowOptions(false);
   };
 
-  const isBusy = loading || preparing;
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  };
+
+  const busy = loading || !imageReady;
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={handleShare}
-        disabled={loading}
-        className="w-full rounded-2xl bg-coral-500 py-3.5 font-semibold text-white transition-colors hover:bg-coral-600 disabled:opacity-60"
+        onClick={openShareMenu}
+        className="w-full rounded-2xl bg-coral-500 py-3.5 font-semibold text-white transition-colors hover:bg-coral-600"
       >
         공유하기
       </button>
@@ -137,32 +156,34 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
               결과 공유하기
             </h4>
             <p className="mb-5 text-center text-sm text-brown-500">
-              {preparing ? "이미지 준비 중..." : "원하는 방식을 선택하세요"}
+              {imageReady
+                ? "원하는 방식을 선택하세요"
+                : "이미지를 준비하고 있어요..."}
             </p>
 
             <div className="space-y-3">
               <button
                 type="button"
                 onClick={handleSaveImage}
-                disabled={isBusy}
+                disabled={busy}
                 className="w-full rounded-2xl border-2 border-coral-400 py-3.5 font-medium text-coral-500 transition-colors hover:bg-coral-50 disabled:opacity-50"
               >
-                {loading ? "처리 중..." : "이미지 저장"}
+                {busy ? "이미지 생성 중..." : "이미지 저장"}
               </button>
 
               <button
                 type="button"
                 onClick={handleSNSShare}
-                disabled={isBusy}
+                disabled={busy}
                 className="w-full rounded-2xl border border-beige-300 py-3.5 font-medium text-brown-700 transition-colors hover:bg-beige-100 disabled:opacity-50"
               >
-                SNS 공유
+                {busy ? "준비 중..." : "SNS 공유"}
               </button>
 
               <button
                 type="button"
                 onClick={handleCopyLink}
-                disabled={isBusy}
+                disabled={loading}
                 className="w-full rounded-2xl border border-beige-300 py-3.5 font-medium text-brown-700 transition-colors hover:bg-beige-100 disabled:opacity-50"
               >
                 링크 복사
@@ -178,6 +199,10 @@ export default function ShareResult({ imageRef, result }: ShareResultProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {previewUrl && (
+        <ImagePreviewModal imageUrl={previewUrl} onClose={closePreview} />
       )}
 
       {toast && (
